@@ -8,10 +8,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/mwdev22/core/cctx"
-	"github.com/mwdev22/core/utils/errs"
-	"github.com/mwdev22/core/utils/jsonutil"
-	"github.com/mwdev22/core/utils/utils"
+	"github.com/mwdev22/rest/utils/errs"
+	"github.com/mwdev22/rest/utils/jsonutil"
+	"github.com/mwdev22/rest/utils/utils"
 )
 
 type appHandler func(w http.ResponseWriter, r *http.Request) error
@@ -55,14 +54,14 @@ func RealIP(next http.Handler) http.Handler {
 		}(r)
 
 		next.ServeHTTP(w, r.WithContext(
-			context.WithValue(r.Context(), cctx.RealIpKey, ip)),
+			context.WithValue(r.Context(), RealIpKey, ip)),
 		)
 	})
 }
 
 func Internal(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _ := r.Context().Value(cctx.RealIpKey).(string)
+		ip, _ := r.Context().Value(RealIpKey).(string)
 		if ip != "" {
 			log.Printf("Internal route ‑ caller IP: %s", ip)
 		}
@@ -80,7 +79,7 @@ func Internal(next http.Handler) http.Handler {
 func AllowRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			val := r.Context().Value(cctx.RoleKey)
+			val := r.Context().Value(RoleKey)
 			if val == nil || !utils.Contains(roles, val.(string)) {
 				http.Error(w, "forbidden", http.StatusForbidden)
 				return

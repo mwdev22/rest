@@ -8,8 +8,7 @@ this repository collects small utilities and middleware that are commonly needed
 
 ## layout
 
-- `config/` — environment-driven application configuration helpers (uses .env)
-- `database/` — database utilities
+- `cctx/` — typed context keys and small context helpers used across middleware and handlers.
 - `middleware/` — HTTP middlewares (targetted to use with chi)
   - `middleware.go` — request/response helpers, JSON writer, common middlewares (logger, recoverer, RealIP extraction, internal-only guard, role-based allow). Includes a `Wrap` helper that turns handlers returning errors into standard HTTP handlers.
   - `ratelimiter.go` — per-IP token-bucket rate limiter using `golang.org/x/time/rate` with automatic cleanup.
@@ -20,42 +19,27 @@ this repository collects small utilities and middleware that are commonly needed
 
 ## Quick start
 
-1. Create a `.env` (optional) or set environment variables used by config:
-
-   - `ADDR` (default `:8080`)
-   - `SECRET_KEY`
-   - `DATABASE_URI`
-   - `DATABASE_MAX_OPEN_CONNS`, `DATABASE_MAX_IDLE_CONNS`, `DATABASE_MIN_IDLE_CONNS`, `DATABASE_CONN_MAX_LIFETIME`
-
-2. Build components and wire them into your app (example sketch):
+1. Wire the provided middleware into a chi router and use `middleware.Wrap` for handlers that return errors. Example:
 
 ```go
-cfg := config.New()
-
-pgPool, err := database.NewPostgres(cfg.Database)
-if err != nil {
-  log.Printf("ehhh: %w", err)
-}
-
-cache := database.NewRedisCache(0, "addr")
-
 r := chi.NewRouter()
+
+// common middlewares
 r.Use(middleware.Logger)
 r.Use(middleware.Recoverer)
 
-r.With(middleware.Wrap).Get("/", func(w http.ResponseWriter, req *http.Request) error {
-  w.Write([]byte("ok"))
-  return nil
-})
-
+// handlers that return error can be used with Wrap
+r.Get("/", middleware.Wrap(func(w http.ResponseWriter, req *http.Request) error {
+    w.Write([]byte("ok"))
+    return nil
+}))
 ```
 
-3. Use `middleware.Wrap` to convert handlers that return `error` into `http.HandlerFunc` and return `*errs.ApiError` when appropriate to control response codes.
+2. Return `*errs.ApiError` from wrapped handlers when you need to control HTTP response codes.
 
 ## Design notes
 
 - `jsonutil.Parse` uses `go-playground/validator` for request payload validation. Define struct tags to validate input.
-- Middleware values use typed context keys declared in `middleware/middleware.go` to reduce collisions.
 
 ## Testing and quality
 
