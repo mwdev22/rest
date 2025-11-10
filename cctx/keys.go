@@ -4,10 +4,8 @@ import "context"
 
 type contextKey string
 
-type ctxKey string
-
 const (
-	RealIpKey ctxKey = "realIP"
+	RealIpKey contextKey = "realIP"
 )
 
 func RealIP(ctx context.Context) string {

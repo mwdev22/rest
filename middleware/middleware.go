@@ -11,11 +11,55 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/mwdev22/rest/cctx"
+	"github.com/mwdev22/rest/jsonutil"
 	"github.com/mwdev22/rest/utils/errs"
-	"github.com/mwdev22/rest/utils/jsonutil"
 )
 
 type appHandler func(w http.ResponseWriter, r *http.Request) error
+
+const (
+	colorReset  = "\033[0m"
+	colorRed    = "\033[31m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorBlue   = "\033[34m"
+	colorCyan   = "\033[36m"
+)
+
+func colorMethod(method string) string {
+	switch method {
+	case "GET":
+		return colorBlue + method + colorReset
+	case "POST":
+		return colorGreen + method + colorReset
+	case "PUT":
+		return colorYellow + method + colorReset
+	case "DELETE":
+		return colorRed + method + colorReset
+	case "PATCH":
+		return colorCyan + method + colorReset
+	case "OPTIONS":
+		return colorCyan + method + colorReset
+	default:
+		return method
+	}
+}
+
+func colorStatus(status int) string {
+	statusStr := string(rune(status/100)+'0') + "xx"
+	switch {
+	case status >= 200 && status < 300:
+		return colorGreen + statusStr + colorReset
+	case status >= 300 && status < 400:
+		return colorYellow + statusStr + colorReset
+	case status >= 400 && status < 500:
+		return colorRed + statusStr + colorReset
+	case status >= 500:
+		return colorRed + statusStr + colorReset
+	default:
+		return statusStr
+	}
+}
 
 func Logger(next http.Handler) http.Handler {
 	before := time.Now()
@@ -23,13 +67,17 @@ func Logger(next http.Handler) http.Handler {
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
-			log.Printf("[%s] %s %d %s", r.Method, r.RequestURI, ww.Status(), time.Since(before))
+			duration := time.Since(before)
+			log.Printf("[%s] %s %s %s",
+				colorMethod(r.Method),
+				r.RequestURI,
+				colorStatus(ww.Status()),
+				duration)
 		}()
 
 		next.ServeHTTP(ww, r)
 	})
 }
-
 func RateLimit(limit int, windowLength time.Duration) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return httprate.LimitByRealIP(limit, windowLength)(next)
@@ -45,11 +93,13 @@ func Wrap(final appHandler) http.HandlerFunc {
 		if err := final(w, r); err != nil {
 			var e errs.ApiError
 			if errors.As(err, &e) {
-				jsonutil.Write(w, e.StatusCode, map[string]string{
-					"error": e.Error(),
-				})
+				jsonutil.Write(w, e.StatusCode, e.Map())
+				log.Printf("%sAPI ERROR%s: %s", colorRed, colorReset, err.Error())
 			} else {
-				jsonutil.Write(w, http.StatusInternalServerError, "internal server error")
+				jsonutil.Write(w, http.StatusInternalServerError, map[string]string{
+					"error": "internal server error",
+				})
+				log.Printf("%sUNKNOWN ERROR%s: %s", colorRed, colorReset, err.Error())
 			}
 		}
 	}
