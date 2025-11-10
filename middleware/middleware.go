@@ -69,11 +69,11 @@ func Logger(next http.Handler) http.Handler {
 
 		defer func() {
 			duration := time.Since(before)
-			log.Printf("[%s] %s %s %vms",
+			log.Printf("[%s] %s %s %.2fms",
 				colorMethod(r.Method),
 				r.RequestURI,
 				colorStatus(ww.Status()),
-				duration.Milliseconds())
+				float64(duration.Microseconds())/1000.0)
 		}()
 
 		next.ServeHTTP(ww, r)
