@@ -398,19 +398,19 @@ func TestInvalidQueryParam(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	tests := []struct {
 		name        string
-		inputError  error
+		inputError  string
 		expectedMsg string
 		expectedLog string
 	}{
 		{
 			name:        "user not found",
-			inputError:  errors.New("user not found in database"),
+			inputError:  "user not found in database",
 			expectedMsg: "not found",
 			expectedLog: "user not found in database",
 		},
 		{
 			name:        "resource not found",
-			inputError:  errors.New("resource does not exist"),
+			inputError:  "resource does not exist",
 			expectedMsg: "not found",
 			expectedLog: "resource does not exist",
 		},

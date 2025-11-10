@@ -61,7 +61,7 @@ func TestWrap(t *testing.T) {
 		{
 			name: "error - not found",
 			handler: func(w http.ResponseWriter, r *http.Request) error {
-				return errs.NotFound(errors.New("object not found"))
+				return errs.NotFound("object not found")
 			},
 			expectedStatus: http.StatusNotFound,
 			checkJSON:      true,

@@ -3,6 +3,8 @@ package errs
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/mwdev22/rest/cctx"
 )
 
 type ApiError struct {
@@ -82,11 +84,19 @@ func InvalidQueryParam(param string) ApiError {
 	}
 }
 
-func NotFound(err error) ApiError {
+func MissingContextValue(key cctx.ContextKey) ApiError {
+	return ApiError{
+		StatusCode: http.StatusInternalServerError,
+		Msg:        "internal server error",
+		Log:        fmt.Sprintf("missing context value for key: %s", key),
+	}
+}
+
+func NotFound(reason string) ApiError {
 	return ApiError{
 		StatusCode: http.StatusNotFound,
 		Msg:        "not found",
-		Log:        err.Error(),
+		Log:        reason,
 	}
 }
 

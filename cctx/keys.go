@@ -2,10 +2,10 @@ package cctx
 
 import "context"
 
-type contextKey string
+type ContextKey string
 
 const (
-	RealIpKey contextKey = "realIP"
+	RealIpKey ContextKey = "realIP"
 )
 
 func RealIP(ctx context.Context) string {
