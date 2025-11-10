@@ -116,6 +116,32 @@ func TestApiError_Map(t *testing.T) {
 	}
 }
 
+func TestInternal(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputError  error
+		expectedMsg string
+	}{
+		{
+			name:        "internal server error",
+			expectedMsg: "internal server error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := InternalServerError()
+
+			if err.StatusCode != http.StatusInternalServerError {
+				t.Errorf("expected status %d, got %d", http.StatusInternalServerError, err.StatusCode)
+			}
+			if err.Msg != tt.expectedMsg {
+				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
+			}
+		})
+	}
+}
+
 func TestInvalidJson(t *testing.T) {
 	tests := []struct {
 		name        string

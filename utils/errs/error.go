@@ -27,6 +27,13 @@ func NewApiError(status int, msg string) ApiError {
 	}
 }
 
+func InternalServerError() ApiError {
+	return ApiError{
+		StatusCode: http.StatusInternalServerError,
+		Msg:        "internal server error",
+	}
+}
+
 func InvalidJson() ApiError {
 	return ApiError{
 		StatusCode: http.StatusBadRequest,
