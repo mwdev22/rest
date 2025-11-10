@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -46,7 +47,7 @@ func colorMethod(method string) string {
 }
 
 func colorStatus(status int) string {
-	statusStr := string(rune(status/100)+'0') + "xx"
+	statusStr := fmt.Sprintf("%v", status)
 	switch {
 	case status >= 200 && status < 300:
 		return colorGreen + statusStr + colorReset
@@ -68,11 +69,11 @@ func Logger(next http.Handler) http.Handler {
 
 		defer func() {
 			duration := time.Since(before)
-			log.Printf("[%s] %s %s %s",
+			log.Printf("[%s] %s %s %dms",
 				colorMethod(r.Method),
 				r.RequestURI,
 				colorStatus(ww.Status()),
-				duration)
+				duration.Milliseconds())
 		}()
 
 		next.ServeHTTP(ww, r)

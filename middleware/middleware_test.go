@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -303,15 +304,15 @@ func TestColorStatus(t *testing.T) {
 		status   int
 		expected string
 	}{
-		{200, colorGreen + "2xx" + colorReset},
-		{299, colorGreen + "2xx" + colorReset},
-		{301, colorYellow + "3xx" + colorReset},
-		{404, colorRed + "4xx" + colorReset},
-		{500, colorRed + "5xx" + colorReset},
+		{200, colorGreen + "200" + colorReset},
+		{299, colorGreen + "299" + colorReset},
+		{301, colorYellow + "301" + colorReset},
+		{404, colorRed + "404" + colorReset},
+		{500, colorRed + "500" + colorReset},
 	}
 
 	for _, tt := range tests {
-		t.Run(string(rune(tt.status)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("status_%d", tt.status), func(t *testing.T) {
 			result := colorStatus(tt.status)
 			if result != tt.expected {
 				t.Errorf("colorStatus(%d) = %q, want %q", tt.status, result, tt.expected)
