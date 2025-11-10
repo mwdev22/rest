@@ -27,6 +27,11 @@ r := chi.NewRouter()
 // common middlewares
 r.Use(middleware.Logger)
 r.Use(middleware.Recoverer)
+r.Use(middleware.RealIP)
+
+// optional: add rate limiting (5 requests per second, burst of 10, cleanup every 5 minutes)
+rateLimiter := middleware.NewRateLimiter(5.0, 10, 5*time.Minute)
+r.Use(rateLimiter.Middleware)
 
 // handlers that return error can be used with Wrap
 r.Get("/", middleware.Wrap(func(w http.ResponseWriter, req *http.Request) error {
@@ -36,6 +41,16 @@ r.Get("/", middleware.Wrap(func(w http.ResponseWriter, req *http.Request) error 
 ```
 
 2. Return `*errs.ApiError` from wrapped handlers when you need to control HTTP response codes.
+
+### Rate Limiting
+
+The `NewRateLimiter` creates a per-IP token-bucket rate limiter:
+
+- **rps**: requests per second (e.g., `5.0`)
+- **burst**: maximum burst size (e.g., `10`)
+- **cleanupInterval**: how often to remove inactive IP limiters (e.g., `5*time.Minute`)
+
+Apply it globally with `r.Use(rateLimiter.Middleware)` or per-route with `r.With(rateLimiter.Middleware).Get(...)`.
 
 ## Design notes
 

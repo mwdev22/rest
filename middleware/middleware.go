@@ -6,18 +6,34 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httprate"
 	"github.com/mwdev22/rest/cctx"
 	"github.com/mwdev22/rest/utils/errs"
 	"github.com/mwdev22/rest/utils/jsonutil"
-	"github.com/mwdev22/rest/utils/utils"
 )
 
 type appHandler func(w http.ResponseWriter, r *http.Request) error
 
 func Logger(next http.Handler) http.Handler {
-	return middleware.Logger(next)
+	before := time.Now()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+		defer func() {
+			log.Printf("[%s] %s %d %s", r.Method, r.RequestURI, ww.Status(), time.Since(before))
+		}()
+
+		next.ServeHTTP(ww, r)
+	})
+}
+
+func RateLimit(limit int, windowLength time.Duration) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return httprate.LimitByRealIP(limit, windowLength)(next)
+	}
 }
 
 func Recoverer(next http.Handler) http.Handler {
@@ -75,17 +91,4 @@ func Internal(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-func AllowRole(roles ...string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			val := r.Context().Value(cctx.RoleKey)
-			if val == nil || !utils.Contains(roles, val.(string)) {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
 }
