@@ -47,8 +47,8 @@ func TestNewApiError(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != "" {
-				t.Errorf("expected empty ToLog, got '%s'", err.ToLog)
+			if err.Log != "" {
+				t.Errorf("expected empty Log, got '%s'", err.Log)
 			}
 		})
 	}
@@ -122,22 +122,22 @@ func TestApiError_Map(t *testing.T) {
 
 func TestInternalServerError(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputError    error
-		expectedMsg   string
-		expectedToLog string
+		name        string
+		inputError  error
+		expectedMsg string
+		expectedLog string
 	}{
 		{
-			name:          "database error",
-			inputError:    errors.New("connection timeout"),
-			expectedMsg:   "internal server error",
-			expectedToLog: "connection timeout",
+			name:        "database error",
+			inputError:  errors.New("connection timeout"),
+			expectedMsg: "internal server error",
+			expectedLog: "connection timeout",
 		},
 		{
-			name:          "generic error",
-			inputError:    errors.New("unexpected error"),
-			expectedMsg:   "internal server error",
-			expectedToLog: "unexpected error",
+			name:        "generic error",
+			inputError:  errors.New("unexpected error"),
+			expectedMsg: "internal server error",
+			expectedLog: "unexpected error",
 		},
 	}
 
@@ -151,8 +151,8 @@ func TestInternalServerError(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != tt.expectedToLog {
-				t.Errorf("expected ToLog '%s', got '%s'", tt.expectedToLog, err.ToLog)
+			if err.Log != tt.expectedLog {
+				t.Errorf("expected log '%s', got '%s'", tt.expectedLog, err.Log)
 			}
 		})
 	}
@@ -160,28 +160,34 @@ func TestInternalServerError(t *testing.T) {
 
 func TestUnauthorized(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputError    error
-		expectedMsg   string
-		expectedToLog string
+		name        string
+		reason      string
+		expectedMsg string
+		expectedLog string
 	}{
 		{
-			name:          "invalid token",
-			inputError:    errors.New("token expired"),
-			expectedMsg:   "unauthorized",
-			expectedToLog: "token expired",
+			name:        "invalid token",
+			reason:      "token expired",
+			expectedMsg: "unauthorized",
+			expectedLog: "token expired",
 		},
 		{
-			name:          "missing credentials",
-			inputError:    errors.New("no credentials provided"),
-			expectedMsg:   "unauthorized",
-			expectedToLog: "no credentials provided",
+			name:        "missing credentials",
+			reason:      "no credentials provided",
+			expectedMsg: "unauthorized",
+			expectedLog: "no credentials provided",
+		},
+		{
+			name:        "empty reason",
+			reason:      "",
+			expectedMsg: "unauthorized",
+			expectedLog: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Unauthorized(tt.inputError)
+			err := Unauthorized(tt.reason)
 
 			if err.StatusCode != http.StatusUnauthorized {
 				t.Errorf("expected status %d, got %d", http.StatusUnauthorized, err.StatusCode)
@@ -189,8 +195,8 @@ func TestUnauthorized(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != tt.expectedToLog {
-				t.Errorf("expected ToLog '%s', got '%s'", tt.expectedToLog, err.ToLog)
+			if err.Log != tt.expectedLog {
+				t.Errorf("expected log '%s', got '%s'", tt.expectedLog, err.Log)
 			}
 		})
 	}
@@ -198,28 +204,34 @@ func TestUnauthorized(t *testing.T) {
 
 func TestForbidden(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputError    error
-		expectedMsg   string
-		expectedToLog string
+		name        string
+		reason      string
+		expectedMsg string
+		expectedLog string
 	}{
 		{
-			name:          "insufficient permissions",
-			inputError:    errors.New("user lacks required role"),
-			expectedMsg:   "forbidden",
-			expectedToLog: "user lacks required role",
+			name:        "insufficient permissions",
+			reason:      "user lacks required role",
+			expectedMsg: "forbidden",
+			expectedLog: "user lacks required role",
 		},
 		{
-			name:          "access denied",
-			inputError:    errors.New("resource access denied"),
-			expectedMsg:   "forbidden",
-			expectedToLog: "resource access denied",
+			name:        "access denied",
+			reason:      "resource access denied",
+			expectedMsg: "forbidden",
+			expectedLog: "resource access denied",
+		},
+		{
+			name:        "empty reason",
+			reason:      "",
+			expectedMsg: "forbidden",
+			expectedLog: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Forbidden(tt.inputError)
+			err := Forbidden(tt.reason)
 
 			if err.StatusCode != http.StatusForbidden {
 				t.Errorf("expected status %d, got %d", http.StatusForbidden, err.StatusCode)
@@ -227,8 +239,8 @@ func TestForbidden(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != tt.expectedToLog {
-				t.Errorf("expected ToLog '%s', got '%s'", tt.expectedToLog, err.ToLog)
+			if err.Log != tt.expectedLog {
+				t.Errorf("expected log '%s', got '%s'", tt.expectedLog, err.Log)
 			}
 		})
 	}
@@ -236,22 +248,22 @@ func TestForbidden(t *testing.T) {
 
 func TestInvalidJson(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputError    error
-		expectedMsg   string
-		expectedToLog string
+		name        string
+		inputError  error
+		expectedMsg string
+		expectedLog string
 	}{
 		{
-			name:          "json parse error",
-			inputError:    errors.New("unexpected end of JSON input"),
-			expectedMsg:   "invalid json",
-			expectedToLog: "unexpected end of JSON input",
+			name:        "json parse error",
+			inputError:  errors.New("unexpected end of JSON input"),
+			expectedMsg: "invalid json",
+			expectedLog: "unexpected end of JSON input",
 		},
 		{
-			name:          "syntax error",
-			inputError:    errors.New("invalid character"),
-			expectedMsg:   "invalid json",
-			expectedToLog: "invalid character",
+			name:        "syntax error",
+			inputError:  errors.New("invalid character"),
+			expectedMsg: "invalid json",
+			expectedLog: "invalid character",
 		},
 	}
 
@@ -265,8 +277,8 @@ func TestInvalidJson(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != tt.expectedToLog {
-				t.Errorf("expected ToLog '%s', got '%s'", tt.expectedToLog, err.ToLog)
+			if err.Log != tt.expectedLog {
+				t.Errorf("expected log '%s', got '%s'", tt.expectedLog, err.Log)
 			}
 		})
 	}
@@ -274,22 +286,22 @@ func TestInvalidJson(t *testing.T) {
 
 func TestInvalidFormData(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputError    error
-		expectedMsg   string
-		expectedToLog string
+		name        string
+		inputError  error
+		expectedMsg string
+		expectedLog string
 	}{
 		{
-			name:          "missing field",
-			inputError:    errors.New("required field missing"),
-			expectedMsg:   "invalid form data",
-			expectedToLog: "required field missing",
+			name:        "missing field",
+			inputError:  errors.New("required field missing"),
+			expectedMsg: "invalid form data",
+			expectedLog: "required field missing",
 		},
 		{
-			name:          "validation error",
-			inputError:    errors.New("email format invalid"),
-			expectedMsg:   "invalid form data",
-			expectedToLog: "email format invalid",
+			name:        "validation error",
+			inputError:  errors.New("email format invalid"),
+			expectedMsg: "invalid form data",
+			expectedLog: "email format invalid",
 		},
 	}
 
@@ -302,8 +314,8 @@ func TestInvalidFormData(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != tt.expectedToLog {
-				t.Errorf("expected ToLog '%s', got '%s'", tt.expectedToLog, err.ToLog)
+			if err.Log != tt.expectedLog {
+				t.Errorf("expected log '%s', got '%s'", tt.expectedLog, err.Log)
 			}
 		})
 	}
@@ -385,22 +397,22 @@ func TestInvalidQueryParam(t *testing.T) {
 
 func TestNotFound(t *testing.T) {
 	tests := []struct {
-		name          string
-		inputError    error
-		expectedMsg   string
-		expectedToLog string
+		name        string
+		inputError  error
+		expectedMsg string
+		expectedLog string
 	}{
 		{
-			name:          "user not found",
-			inputError:    errors.New("user not found in database"),
-			expectedMsg:   "not found",
-			expectedToLog: "user not found in database",
+			name:        "user not found",
+			inputError:  errors.New("user not found in database"),
+			expectedMsg: "not found",
+			expectedLog: "user not found in database",
 		},
 		{
-			name:          "resource not found",
-			inputError:    errors.New("resource does not exist"),
-			expectedMsg:   "not found",
-			expectedToLog: "resource does not exist",
+			name:        "resource not found",
+			inputError:  errors.New("resource does not exist"),
+			expectedMsg: "not found",
+			expectedLog: "resource does not exist",
 		},
 	}
 
@@ -414,8 +426,8 @@ func TestNotFound(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != tt.expectedToLog {
-				t.Errorf("expected ToLog '%s', got '%s'", tt.expectedToLog, err.ToLog)
+			if err.Log != tt.expectedLog {
+				t.Errorf("expected log '%s', got '%s'", tt.expectedLog, err.Log)
 			}
 		})
 	}
@@ -458,8 +470,8 @@ func TestObjectNotFound(t *testing.T) {
 			if err.Msg != tt.expectedMsg {
 				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
 			}
-			if err.ToLog != "" {
-				t.Errorf("expected empty ToLog, got '%s'", err.ToLog)
+			if err.Log != "" {
+				t.Errorf("expected empty Log, got '%s'", err.Log)
 			}
 		})
 	}

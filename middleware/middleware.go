@@ -94,7 +94,7 @@ func Wrap(final HandlerWithErr) http.HandlerFunc {
 			var e errs.ApiError
 			if errors.As(err, &e) {
 				jsonutil.Write(w, e.StatusCode, e.Map())
-				log.Printf("%sAPI ERROR%s: %s", colorRed, colorReset, e.ToLog)
+				log.Printf("%sAPI ERROR%s: %s", colorRed, colorReset, e.Log)
 			} else {
 				jsonutil.Write(w, http.StatusInternalServerError, map[string]string{
 					"error": "internal server error",
