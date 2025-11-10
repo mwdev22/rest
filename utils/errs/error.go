@@ -34,6 +34,13 @@ func InvalidJson() ApiError {
 	}
 }
 
+func InvalidFormData() ApiError {
+	return ApiError{
+		StatusCode: http.StatusBadRequest,
+		Msg:        "invalid form data",
+	}
+}
+
 func InvalidPathParam(param string) ApiError {
 	return ApiError{
 		StatusCode: http.StatusBadRequest,

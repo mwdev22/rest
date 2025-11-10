@@ -126,20 +126,37 @@ func TestInvalidJson(t *testing.T) {
 			name:        "json parse error",
 			expectedMsg: "invalid json",
 		},
-		{
-			name:        "nil error",
-			expectedMsg: "invalid json",
-		},
-		{
-			name:        "custom error",
-			expectedMsg: "invalid json",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := InvalidJson()
 
+			if err.StatusCode != http.StatusBadRequest {
+				t.Errorf("expected status %d, got %d", http.StatusBadRequest, err.StatusCode)
+			}
+			if err.Msg != tt.expectedMsg {
+				t.Errorf("expected msg '%s', got '%s'", tt.expectedMsg, err.Msg)
+			}
+		})
+	}
+}
+
+func TestInvalidFormData(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputError  error
+		expectedMsg string
+	}{
+		{
+			name:        "invalid form data",
+			expectedMsg: "invalid form data",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := InvalidFormData()
 			if err.StatusCode != http.StatusBadRequest {
 				t.Errorf("expected status %d, got %d", http.StatusBadRequest, err.StatusCode)
 			}
