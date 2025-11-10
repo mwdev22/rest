@@ -15,7 +15,7 @@ import (
 	"github.com/mwdev22/rest/utils/errs"
 )
 
-type appHandler func(w http.ResponseWriter, r *http.Request) error
+type HandlerWithErr func(w http.ResponseWriter, r *http.Request) error
 
 const (
 	colorReset  = "\033[0m"
@@ -88,7 +88,7 @@ func Recoverer(next http.Handler) http.Handler {
 	return middleware.Recoverer(next)
 }
 
-func Wrap(final appHandler) http.HandlerFunc {
+func Wrap(final HandlerWithErr) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := final(w, r); err != nil {
 			var e errs.ApiError
