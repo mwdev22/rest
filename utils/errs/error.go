@@ -8,6 +8,7 @@ import (
 type ApiError struct {
 	StatusCode int    `json:"status_code"`
 	Msg        string `json:"msg"`
+	ToLog      string `json:"to_log,omitempty"`
 }
 
 func (e ApiError) Error() string {
@@ -27,24 +28,43 @@ func NewApiError(status int, msg string) ApiError {
 	}
 }
 
-func InternalServerError() ApiError {
+func InternalServerError(err error) ApiError {
 	return ApiError{
 		StatusCode: http.StatusInternalServerError,
 		Msg:        "internal server error",
+		ToLog:      err.Error(),
 	}
 }
 
-func InvalidJson() ApiError {
+func Unauthorized(err error) ApiError {
+	return ApiError{
+		StatusCode: http.StatusUnauthorized,
+		Msg:        "unauthorized",
+		ToLog:      err.Error(),
+	}
+}
+
+func Forbidden(err error) ApiError {
+	return ApiError{
+		StatusCode: http.StatusForbidden,
+		Msg:        "forbidden",
+		ToLog:      err.Error(),
+	}
+}
+
+func InvalidJson(err error) ApiError {
 	return ApiError{
 		StatusCode: http.StatusBadRequest,
 		Msg:        "invalid json",
+		ToLog:      err.Error(),
 	}
 }
 
-func InvalidFormData() ApiError {
+func InvalidFormData(err error) ApiError {
 	return ApiError{
 		StatusCode: http.StatusBadRequest,
 		Msg:        "invalid form data",
+		ToLog:      err.Error(),
 	}
 }
 
@@ -62,10 +82,11 @@ func InvalidQueryParam(param string) ApiError {
 	}
 }
 
-func NotFound(msg string) ApiError {
+func NotFound(err error) ApiError {
 	return ApiError{
 		StatusCode: http.StatusNotFound,
-		Msg:        msg,
+		Msg:        "not found",
+		ToLog:      err.Error(),
 	}
 }
 
@@ -73,5 +94,6 @@ func ObjectNotFound(id string, name string) ApiError {
 	return ApiError{
 		StatusCode: http.StatusNotFound,
 		Msg:        fmt.Sprintf("%s with ID %s not found", name, id),
+		ToLog:      "",
 	}
 }

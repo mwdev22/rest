@@ -34,7 +34,7 @@ func TestWrap(t *testing.T) {
 		{
 			name: "error - invalid json",
 			handler: func(w http.ResponseWriter, r *http.Request) error {
-				return errs.InvalidJson()
+				return errs.InvalidJson(errors.New("unexpected token"))
 			},
 			expectedStatus: http.StatusBadRequest,
 			checkJSON:      true,
@@ -61,11 +61,11 @@ func TestWrap(t *testing.T) {
 		{
 			name: "error - not found",
 			handler: func(w http.ResponseWriter, r *http.Request) error {
-				return errs.NotFound("object not found")
+				return errs.NotFound(errors.New("object not found"))
 			},
 			expectedStatus: http.StatusNotFound,
 			checkJSON:      true,
-			expectedError:  "object not found",
+			expectedError:  "not found",
 		},
 		{
 			name: "generic error",
