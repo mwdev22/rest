@@ -34,7 +34,7 @@ func TestWrap(t *testing.T) {
 		{
 			name: "error - invalid json",
 			handler: func(w http.ResponseWriter, r *http.Request) error {
-				return errs.InvalidJson(errors.New("EOF"))
+				return errs.InvalidJson()
 			},
 			expectedStatus: http.StatusBadRequest,
 			checkJSON:      true,

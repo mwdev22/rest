@@ -1,7 +1,6 @@
 package errs
 
 import (
-	"errors"
 	"net/http"
 	"testing"
 )
@@ -125,24 +124,21 @@ func TestInvalidJson(t *testing.T) {
 	}{
 		{
 			name:        "json parse error",
-			inputError:  errors.New("unexpected end of JSON input"),
 			expectedMsg: "invalid json",
 		},
 		{
 			name:        "nil error",
-			inputError:  nil,
 			expectedMsg: "invalid json",
 		},
 		{
 			name:        "custom error",
-			inputError:  errors.New("some other error"),
 			expectedMsg: "invalid json",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := InvalidJson(tt.inputError)
+			err := InvalidJson()
 
 			if err.StatusCode != http.StatusBadRequest {
 				t.Errorf("expected status %d, got %d", http.StatusBadRequest, err.StatusCode)

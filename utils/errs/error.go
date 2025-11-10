@@ -27,7 +27,7 @@ func NewApiError(status int, msg string) ApiError {
 	}
 }
 
-func InvalidJson(err error) ApiError {
+func InvalidJson() ApiError {
 	return ApiError{
 		StatusCode: http.StatusBadRequest,
 		Msg:        "invalid json",
