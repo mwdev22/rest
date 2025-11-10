@@ -63,8 +63,8 @@ func colorStatus(status int) string {
 }
 
 func Logger(next http.Handler) http.Handler {
-	before := time.Now()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		before := time.Now()
 		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
 		defer func() {
