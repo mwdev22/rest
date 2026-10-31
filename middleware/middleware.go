@@ -3,7 +3,10 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -63,7 +66,7 @@ func Pagination(defaultLimit int, maxLimit int) MiddlewareToChain {
 					}
 					if l > maxLimit {
 						jsonutil.Write(w, http.StatusBadRequest, map[string]string{
-							"error": "limit must not exceed 100",
+							"error": fmt.Sprintf("limit must not exceed %d", maxLimit),
 						})
 						return
 					}
@@ -117,31 +120,85 @@ func Logger(l logging.Logger) MiddlewareToChain {
 }
 func RateLimit(limit int, windowLength time.Duration) MiddlewareToChain {
 	return func(next http.Handler) http.Handler {
-		return httprate.LimitByRealIP(limit, windowLength)(next)
+		return httprate.Limit(limit, windowLength, httprate.WithKeyFuncs(keyByStoredIP))(next)
 	}
+}
+
+// httprate.KeyByRealIP trusts client headers, so key on what RealIP resolved
+func keyByStoredIP(r *http.Request) (string, error) {
+	if ip := cctx.RealIP(r.Context()); ip != "" {
+		return ip, nil
+	}
+	return httprate.KeyByIP(r)
 }
 
 func Recoverer(next http.Handler) http.Handler {
 	return middleware.Recoverer(next)
 }
 
+// RealIP stores the TCP peer address and ignores forwarding headers, use RealIPFrom behind a proxy
 func RealIP(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := func(r *http.Request) string {
-			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-				return strings.TrimSpace(strings.Split(xff, ",")[0])
-			}
-			if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
-				return xrip
-			}
-			host, _, _ := strings.Cut(r.RemoteAddr, ":")
-			return host
-		}(r)
+	return RealIPFrom()(next)
+}
 
-		next.ServeHTTP(w, r.WithContext(
-			context.WithValue(r.Context(), cctx.RealIpKey, ip)),
-		)
-	})
+// RealIPFrom trusts X-Forwarded-For / X-Real-IP only from peers in trusted,
+// taking the right-most X-Forwarded-For entry that is not a trusted proxy
+func RealIPFrom(trusted ...netip.Prefix) MiddlewareToChain {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := clientIP(r, trusted)
+			next.ServeHTTP(w, r.WithContext(
+				context.WithValue(r.Context(), cctx.RealIpKey, ip)),
+			)
+		})
+	}
+}
+
+func clientIP(r *http.Request, trusted []netip.Prefix) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	peer, err := netip.ParseAddr(host)
+	if err != nil {
+		return host
+	}
+	peer = peer.Unmap()
+	if !isTrusted(peer, trusted) {
+		return peer.String()
+	}
+
+	// proxies append to XFF, so anything left of the first untrusted hop is client-controlled
+	var hops []string
+	for _, h := range r.Header.Values("X-Forwarded-For") {
+		hops = append(hops, strings.Split(h, ",")...)
+	}
+	client := peer
+	for i := len(hops) - 1; i >= 0; i-- {
+		hop, err := netip.ParseAddr(strings.TrimSpace(hops[i]))
+		if err != nil {
+			return client.String()
+		}
+		client = hop.Unmap()
+		if !isTrusted(client, trusted) {
+			return client.String()
+		}
+	}
+	if len(hops) == 0 {
+		if xrip, err := netip.ParseAddr(strings.TrimSpace(r.Header.Get("X-Real-IP"))); err == nil {
+			return xrip.Unmap().String()
+		}
+	}
+	return client.String()
+}
+
+func isTrusted(ip netip.Addr, trusted []netip.Prefix) bool {
+	for _, p := range trusted {
+		if p.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func Internal(next http.Handler) http.Handler {
@@ -152,7 +209,8 @@ func Internal(next http.Handler) http.Handler {
 			l.Printf("internal route ‑ caller IP: %s", ip)
 		}
 
-		if !strings.HasPrefix(ip, "192.168.") {
+		addr, err := netip.ParseAddr(ip)
+		if err != nil || !(addr.IsPrivate() || addr.IsLoopback()) {
 			_ = jsonutil.Write(w, http.StatusForbidden, map[string]string{
 				"error": "forbidden",
 			})
