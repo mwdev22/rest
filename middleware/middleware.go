@@ -201,6 +201,8 @@ func isTrusted(ip netip.Addr, trusted []netip.Prefix) bool {
 	return false
 }
 
+var internalNet = netip.MustParsePrefix("192.168.0.0/16")
+
 func Internal(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ip, _ := r.Context().Value(cctx.RealIpKey).(string)
@@ -210,7 +212,7 @@ func Internal(next http.Handler) http.Handler {
 		}
 
 		addr, err := netip.ParseAddr(ip)
-		if err != nil || !(addr.IsPrivate() || addr.IsLoopback()) {
+		if err != nil || !internalNet.Contains(addr.Unmap()) {
 			_ = jsonutil.Write(w, http.StatusForbidden, map[string]string{
 				"error": "forbidden",
 			})
