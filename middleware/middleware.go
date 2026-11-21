@@ -124,7 +124,6 @@ func RateLimit(limit int, windowLength time.Duration) MiddlewareToChain {
 	}
 }
 
-// httprate.KeyByRealIP trusts client headers, so key on what RealIP resolved
 func keyByStoredIP(r *http.Request) (string, error) {
 	if ip := cctx.RealIP(r.Context()); ip != "" {
 		return ip, nil
@@ -136,13 +135,10 @@ func Recoverer(next http.Handler) http.Handler {
 	return middleware.Recoverer(next)
 }
 
-// RealIP stores the TCP peer address and ignores forwarding headers, use RealIPFrom behind a proxy
 func RealIP(next http.Handler) http.Handler {
 	return RealIPFrom()(next)
 }
 
-// RealIPFrom trusts X-Forwarded-For / X-Real-IP only from peers in trusted,
-// taking the right-most X-Forwarded-For entry that is not a trusted proxy
 func RealIPFrom(trusted ...netip.Prefix) MiddlewareToChain {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -168,7 +164,6 @@ func clientIP(r *http.Request, trusted []netip.Prefix) string {
 		return peer.String()
 	}
 
-	// proxies append to XFF, so anything left of the first untrusted hop is client-controlled
 	var hops []string
 	for _, h := range r.Header.Values("X-Forwarded-For") {
 		hops = append(hops, strings.Split(h, ",")...)
