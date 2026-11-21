@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/mwdev22/rest/cctx"
 	"github.com/mwdev22/rest/utils/errs"
@@ -109,37 +111,38 @@ func TestWrap(t *testing.T) {
 }
 
 func TestRealIP(t *testing.T) {
+	proxies := []netip.Prefix{
+		netip.MustParsePrefix("10.0.0.0/8"),
+		netip.MustParsePrefix("fd00::/8"),
+	}
+
 	tests := []struct {
 		name       string
-		setupReq   func(*http.Request)
+		trusted    []netip.Prefix
+		remoteAddr string
+		xff        []string
+		xRealIP    string
 		expectedIP string
 	}{
-		{
-			name: "X-Forwarded-For header",
-			setupReq: func(req *http.Request) {
-				req.Header.Set("X-Forwarded-For", "203.0.113.1, 198.51.100.1")
-			},
-			expectedIP: "203.0.113.1",
-		},
-		{
-			name: "X-Real-IP header",
-			setupReq: func(req *http.Request) {
-				req.Header.Set("X-Real-IP", "198.51.100.42")
-			},
-			expectedIP: "198.51.100.42",
-		},
-		{
-			name: "RemoteAddr fallback",
-			setupReq: func(req *http.Request) {
-				req.RemoteAddr = "192.0.2.1:12345"
-			},
-			expectedIP: "192.0.2.1",
-		},
+		{name: "RemoteAddr fallback", remoteAddr: "192.0.2.1:12345", expectedIP: "192.0.2.1"},
+		{name: "IPv6 RemoteAddr", remoteAddr: "[::1]:8080", expectedIP: "::1"},
+		{name: "IPv4-mapped IPv6 RemoteAddr", remoteAddr: "[::ffff:192.0.2.1]:8080", expectedIP: "192.0.2.1"},
+		{name: "spoofed XFF from untrusted peer ignored", remoteAddr: "203.0.113.9:1234", xff: []string{"192.168.1.1"}, expectedIP: "203.0.113.9"},
+		{name: "spoofed X-Real-IP from untrusted peer ignored", remoteAddr: "203.0.113.9:1234", xRealIP: "192.168.1.1", expectedIP: "203.0.113.9"},
+		{name: "XFF from peer outside trusted set ignored", trusted: proxies, remoteAddr: "203.0.113.9:1234", xff: []string{"192.168.1.1"}, expectedIP: "203.0.113.9"},
+		{name: "trusted proxy - single hop", trusted: proxies, remoteAddr: "10.0.0.2:1234", xff: []string{"198.51.100.7"}, expectedIP: "198.51.100.7"},
+		{name: "trusted proxy chain - right-most untrusted wins", trusted: proxies, remoteAddr: "10.0.0.2:1234", xff: []string{"192.168.1.1, 198.51.100.7, 10.0.0.5"}, expectedIP: "198.51.100.7"},
+		{name: "trusted proxy chain - multiple XFF headers", trusted: proxies, remoteAddr: "10.0.0.2:1234", xff: []string{"192.168.1.1", "198.51.100.7, 10.0.0.5"}, expectedIP: "198.51.100.7"},
+		{name: "trusted IPv6 proxy", trusted: proxies, remoteAddr: "[fd00::1]:443", xff: []string{"2001:db8::7"}, expectedIP: "2001:db8::7"},
+		{name: "trusted proxy - invalid XFF entry stops walk", trusted: proxies, remoteAddr: "10.0.0.2:1234", xff: []string{"198.51.100.7, garbage"}, expectedIP: "10.0.0.2"},
+		{name: "trusted proxy - all hops trusted", trusted: proxies, remoteAddr: "10.0.0.2:1234", xff: []string{"10.0.0.9"}, expectedIP: "10.0.0.9"},
+		{name: "trusted proxy - X-Real-IP without XFF", trusted: proxies, remoteAddr: "10.0.0.2:1234", xRealIP: "198.51.100.42", expectedIP: "198.51.100.42"},
+		{name: "trusted proxy - no headers", trusted: proxies, remoteAddr: "10.0.0.2:1234", expectedIP: "10.0.0.2"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := RealIP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			handler := RealIPFrom(tt.trusted...)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				ip, ok := r.Context().Value(cctx.RealIpKey).(string)
 				if !ok {
 					t.Error("RealIpKey not found in context")
@@ -152,13 +155,108 @@ func TestRealIP(t *testing.T) {
 			}))
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			tt.setupReq(req)
+			req.RemoteAddr = tt.remoteAddr
+			for _, v := range tt.xff {
+				req.Header.Add("X-Forwarded-For", v)
+			}
+			if tt.xRealIP != "" {
+				req.Header.Set("X-Real-IP", tt.xRealIP)
+			}
 			w := httptest.NewRecorder()
 
 			handler.ServeHTTP(w, req)
 
 			if w.Code != http.StatusOK {
 				t.Errorf("expected status 200, got %d", w.Code)
+			}
+		})
+	}
+}
+
+func TestRealIP_DefaultIgnoresHeaders(t *testing.T) {
+	const peer = "203.0.113.9"
+
+	handler := RealIP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if ip := cctx.RealIP(r.Context()); ip != peer {
+			t.Errorf("expected IP %s, got %s", peer, ip)
+		}
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.RemoteAddr = peer + ":1234"
+	req.Header.Set("X-Forwarded-For", "192.168.1.1")
+	req.Header.Set("X-Real-IP", "192.168.1.1")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+}
+
+func TestInternal_SpoofedHeaders(t *testing.T) {
+	tests := []struct {
+		name           string
+		remoteAddr     string
+		expectedStatus int
+	}{
+		{name: "public peer with spoofed private XFF denied", remoteAddr: "203.0.113.9:1234", expectedStatus: http.StatusForbidden},
+		{name: "private peer allowed", remoteAddr: "192.168.1.10:1234", expectedStatus: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := RealIP(Internal(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})))
+
+			req := httptest.NewRequest(http.MethodGet, "/internal", nil)
+			req.RemoteAddr = tt.remoteAddr
+			req.Header.Set("X-Forwarded-For", "192.168.1.1")
+			req.Header.Set("X-Real-IP", "192.168.1.1")
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			if w.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
+			}
+		})
+	}
+}
+
+func TestRateLimit_IgnoresSpoofedHeaders(t *testing.T) {
+	const (
+		limit  = 2
+		window = time.Minute
+	)
+
+	tests := []struct {
+		name       string
+		withRealIP bool
+	}{
+		{name: "without RealIP keys on peer", withRealIP: false},
+		{name: "with RealIP keys on stored IP", withRealIP: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var handler http.Handler = RateLimit(limit, window)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			}))
+			if tt.withRealIP {
+				handler = RealIP(handler)
+			}
+
+			var lastCode int
+			for i := 0; i <= limit; i++ {
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				req.RemoteAddr = "203.0.113.9:1234"
+				req.Header.Set("X-Forwarded-For", fmt.Sprintf("198.51.100.%d", i))
+				req.Header.Set("X-Real-IP", fmt.Sprintf("198.51.100.%d", i))
+				req.Header.Set("True-Client-IP", fmt.Sprintf("198.51.100.%d", i))
+				w := httptest.NewRecorder()
+				handler.ServeHTTP(w, req)
+				lastCode = w.Code
+			}
+
+			if lastCode != http.StatusTooManyRequests {
+				t.Errorf("expected status %d after rotating headers, got %d", http.StatusTooManyRequests, lastCode)
 			}
 		})
 	}
@@ -187,8 +285,29 @@ func TestInternal(t *testing.T) {
 			shouldAllow:    false,
 		},
 		{
+			name:           "block 10.x network",
+			ip:             "10.1.2.3",
+			expectedStatus: http.StatusForbidden,
+			expectedError:  "forbidden",
+			shouldAllow:    false,
+		},
+		{
 			name:           "block loopback",
 			ip:             "127.0.0.1",
+			expectedStatus: http.StatusForbidden,
+			expectedError:  "forbidden",
+			shouldAllow:    false,
+		},
+		{
+			name:           "block IPv6 loopback",
+			ip:             "::1",
+			expectedStatus: http.StatusForbidden,
+			expectedError:  "forbidden",
+			shouldAllow:    false,
+		},
+		{
+			name:           "block 192.168 lookalike",
+			ip:             "192.168.evil.com",
 			expectedStatus: http.StatusForbidden,
 			expectedError:  "forbidden",
 			shouldAllow:    false,

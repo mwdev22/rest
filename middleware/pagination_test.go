@@ -449,6 +449,39 @@ func TestPagination_ErrorMessages(t *testing.T) {
 	}
 }
 
+func TestPagination_MaxLimitMessage(t *testing.T) {
+	tests := []struct {
+		name          string
+		maxLimit      int
+		query         string
+		expectedError string
+	}{
+		{"maxLimit 50", 50, "?limit=51", "limit must not exceed 50"},
+		{"maxLimit 200", 200, "?limit=201", "limit must not exceed 200"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := Pagination(10, tt.maxLimit)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Error("handler should not be called on error")
+			}))
+
+			req := httptest.NewRequest(http.MethodGet, "/test"+tt.query, nil)
+			w := httptest.NewRecorder()
+
+			handler.ServeHTTP(w, req)
+
+			var response map[string]string
+			if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+			if response["error"] != tt.expectedError {
+				t.Errorf("expected error '%s', got '%s'", tt.expectedError, response["error"])
+			}
+		})
+	}
+}
+
 func TestPagination_BoundaryValues(t *testing.T) {
 	tests := []struct {
 		name          string
